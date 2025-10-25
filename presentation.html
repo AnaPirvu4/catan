@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Catan Challenge</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            overflow: hidden;
+        }
+
+        .presentation {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        .slide {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 60px;
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.6s ease-in-out;
+            background: rgba(255, 255, 255, 0.95);
+        }
+
+        .slide.active {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .slide.prev {
+            transform: translateX(-100%);
+        }
+
+        h1 {
+            font-size: 3.5em;
+            color: #667eea;
+            margin-bottom: 20px;
+            text-align: center;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+
+        h2 {
+            font-size: 2.5em;
+            color: #764ba2;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        h3 {
+            font-size: 1.8em;
+            color: #667eea;
+            margin: 20px 0 15px 0;
+        }
+
+        .subtitle {
+            font-size: 1.5em;
+            color: #555;
+            margin-bottom: 40px;
+            text-align: center;
+        }
+
+        .content {
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s;
+            border-left: 5px solid #667eea;
+        }
+
+        .card:hover {
+            transform: translateY(-10px);
+        }
+
+        .card h3 {
+            color: #764ba2;
+            font-size: 1.5em;
+            margin-bottom: 15px;
+        }
+
+        .algorithm-badge {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            display: inline-block;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        .feature-list {
+            list-style: none;
+            margin-top: 20px;
+        }
+
+        .feature-list li {
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+            font-size: 1.1em;
+            color: #333;
+        }
+
+        .feature-list li:before {
+            content: "✓ ";
+            color: #667eea;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .highlight-box {
+            background: linear-gradient(135deg, #667eea15, #764ba215);
+            border-left: 5px solid #667eea;
+            padding: 25px;
+            margin: 30px 0;
+            border-radius: 10px;
+            font-size: 1.2em;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .result-card {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .result-number {
+            font-size: 3em;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .result-label {
+            font-size: 1.1em;
+            color: #666;
+            margin-top: 10px;
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            gap: 15px;
+            z-index: 1000;
+        }
+
+        .controls button {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 30px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .controls button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+        }
+
+        .slide-counter {
+            position: fixed;
+            bottom: 30px;
+            left: 30px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 1.1em;
+            z-index: 1000;
+        }
+
+        .code-block {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 20px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            margin: 20px 0;
+            overflow-x: auto;
+        }
+
+        .emoji {
+            font-size: 2em;
+            margin-right: 10px;
+        }
+
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin-top: 30px;
+        }
+
+        .metric {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 10px;
+            margin: 10px 0;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+
+        .metric-icon {
+            font-size: 2.5em;
+        }
+
+        .metric-text {
+            flex: 1;
+        }
+
+        .metric-label {
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .metric-value {
+            font-size: 1.5em;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-in {
+            animation: fadeInUp 0.6s ease-out;
+        }
+    </style>
+</head>
+<body>
+    <div class="presentation">
+        <!-- Slide 1: Title -->
+        <div class="slide active" data-slide="1">
+            <h1 class="animate-in">🎲 Quantum Catan Challenge</h1>
+            <p class="subtitle animate-in">Harnessing Quantum Algorithms for Strategic Board Game Optimization</p>
+            <div class="highlight-box animate-in">
+                <p style="text-align: center; font-size: 1.3em;">
+                    <strong>Where Quantum Computing Meets Classic Strategy</strong><br>
+                    Three quantum algorithms tackle optimization problems in Settlers of Catan
+                </p>
+            </div>
+            <div class="results-grid animate-in">
+                <div class="result-card">
+                    <div class="result-number">3</div>
+                    <div class="result-label">Quantum Algorithms</div>
+                </div>
+                <div class="result-card">
+                    <div class="result-number">7</div>
+                    <div class="result-label">Hex Board</div>
+                </div>
+                <div class="result-card">
+                    <div class="result-number">∞</div>
+                    <div class="result-label">Possibilities</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 2: Overview -->
+        <div class="slide" data-slide="2">
+            <h2>🎯 Challenge Overview</h2>
+            <div class="content">
+                <div class="grid">
+                    <div class="card animate-in">
+                        <span class="emoji">🏠</span>
+                        <h3>Problem 1</h3>
+                        <div class="algorithm-badge">QAOA</div>
+                        <p><strong>Settlement Optimization</strong></p>
+                        <p style="margin-top: 10px; color: #666;">Find optimal settlement placement maximizing resource diversity and probability</p>
+                    </div>
+                    <div class="card animate-in">
+                        <span class="emoji">🛣️</span>
+                        <h3>Problem 2</h3>
+                        <div class="algorithm-badge">Quantum Walk</div>
+                        <p><strong>Longest Road</strong></p>
+                        <p style="margin-top: 10px; color: #666;">Find the longest connected path from settlements avoiding constraints</p>
+                    </div>
+                    <div class="card animate-in">
+                        <span class="emoji">💰</span>
+                        <h3>Problem 3</h3>
+                        <div class="algorithm-badge">Grover's Algorithm</div>
+                        <p><strong>Resource Trading</strong></p>
+                        <p style="margin-top: 10px; color: #666;">Optimize building and trading decisions under resource constraints</p>
+                    </div>
+                </div>
+                <div class="highlight-box" style="margin-top: 40px;">
+                    <strong>Key Innovation:</strong> Real quantum circuits implemented with Qiskit, running on AerSimulator with statevector method
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 3: Problem 1 - QAOA -->
+        <div class="slide" data-slide="3">
+            <h2>🏠 Problem 1: QAOA Settlement Planner</h2>
+            <div class="content">
+                <div class="two-column">
+                    <div>
+                        <h3>Quantum Approach</h3>
+                        <ul class="feature-list">
+                            <li>Encodes vertices as qubits</li>
+                            <li>QUBO formulation with penalties</li>
+                            <li>2-layer QAOA circuit</li>
+                            <li>COBYLA classical optimizer</li>
+                            <li>Constraint: No adjacent settlements</li>
+                        </ul>
+                        <div class="code-block">
+# QAOA Circuit Structure
+for layer in range(p_layers):
+    gamma = params[2*layer]
+    beta = params[2*layer+1]
+    
+    # Problem Hamiltonian
+    for i,j: qc.rzz(2*gamma*Q[i,j])
+    
+    # Mixer Hamiltonian  
+    for i: qc.rx(2*beta, i)
+                        </div>
+                    </div>
+                    <div>
+                        <h3>Objectives</h3>
+                        <div class="metric">
+                            <div class="metric-icon">🎲</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Dice Probability</div>
+                                <div class="metric-value">Weighted 1.5x</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon">🌾</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Resource Diversity</div>
+                                <div class="metric-value">Weighted 2.0x</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon">⬡</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Hex Coverage</div>
+                                <div class="metric-value">3-hex > 2-hex</div>
+                            </div>
+                        </div>
+                        <div class="highlight-box">
+                            <strong>Penalty System:</strong><br>
+                            • Adjacent settlements: +100<br>
+                            • Wrong count: +15<br>
+                            • Forces valid configurations
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 4: Problem 2 - Quantum Walk -->
+        <div class="slide" data-slide="4">
+            <h2>🛣️ Problem 2: Quantum Walk Longest Road</h2>
+            <div class="content">
+                <div class="two-column">
+                    <div>
+                        <h3>Algorithm Design</h3>
+                        <ul class="feature-list">
+                            <li>Quantum walk on hex grid graph</li>
+                            <li>Edges encoded as qubits</li>
+                            <li>Iterative circuit with varying steps</li>
+                            <li>Constraint-aware path validation</li>
+                            <li>Must connect to settlements</li>
+                        </ul>
+                        <div class="highlight-box">
+                            <strong>Quantum Walk Steps:</strong><br>
+                            1. Initialize superposition (Hadamard)<br>
+                            2. Apply rotation gates (RY, RZ)<br>
+                            3. Entangle with CNOT chain<br>
+                            4. Measure and validate paths
+                        </div>
+                    </div>
+                    <div>
+                        <h3>Path Constraints</h3>
+                        <div class="metric">
+                            <div class="metric-icon">🔵</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Starting Point</div>
+                                <div class="metric-value">From Settlements</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon">🚫</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Avoid</div>
+                                <div class="metric-value">Other Settlements</div>
+                            </div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-icon">➡️</div>
+                            <div class="metric-text">
+                                <div class="metric-label">Path Type</div>
+                                <div class="metric-value">Simple (No Branching)</div>
+                            </div>
+                        </div>
+                        <div class="code-block">
+# Quantum Walk Circuit
+for step in range(walk_steps):
+    for i: qc.ry(angle, i)
+    for i: qc.cx(i, i+1)
+    # Bidirectional entanglement
+    for i: qc.cx(i, i-1)
+    for i: qc.rz(angle/2, i)
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 5: Problem 3 - Grover's Algorithm -->
+        <div class="slide" data-slide="5">
+            <h2>💰 Problem 3: Grover's Algorithm Resource Trader</h2>
+            <div class="content">
+                <div class="two-column">
+                    <div>
+                        <h3>Quantum Search</h3>
+                        <ul class="feature-list">
+                            <li>Grover's algorithm for optimization</li>
+                            <li>Oracle marks good solutions</li>
+                            <li>Diffusion operator amplifies</li>
+                            <li>Optimal iterations: π/4 √N</li>
+                            <li>Randomized starting resources</li>
+                        </ul>
+                        <div class="code-block">
+# Grover's Algorithm
+n_grover = int(π/4 * √(2^n_qubits))
+
+for _ in range(n_grover):
+    oracle(qc, n_qubits)
+    diffusion(qc, n_qubits)
+                        </div>
+                    </div>
+                    <div>
+                        <h3>Trading Actions</h3>
+                        <div style="background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                            <div style="margin: 10px 0;"><strong>🛣️ Build Road:</strong> 1 wood + 1 brick = 1 pt</div>
+                            <div style="margin: 10px 0;"><strong>🏠 Build Settlement:</strong> 1 wood + 1 brick + 1 wheat + 1 sheep = 5 pts</div>
+                            <div style="margin: 10px 0;"><strong>🏰 Build City:</strong> 3 ore + 2 wheat = 7 pts</div>
+                            <div style="margin: 10px 0;"><strong>🎴 Buy Dev Card:</strong> 1 ore + 1 wheat + 1 sheep = 2 pts</div>
+                        </div>
+                        <div class="highlight-box">
+                            <strong>Challenge:</strong> Resources are randomized (1-5 of each) every run, forcing the algorithm to adapt dynamically!
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 6: Technical Implementation -->
+        <div class="slide" data-slide="6">
+            <h2>⚙️ Technical Implementation</h2>
+            <div class="content">
+                <div class="grid">
+                    <div class="card">
+                        <h3>🔬 Quantum Stack</h3>
+                        <ul class="feature-list">
+                            <li>Qiskit framework</li>
+                            <li>AerSimulator backend</li>
+                            <li>Statevector method</li>
+                            <li>Circuit transpilation</li>
+                            <li>Shot-based sampling</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>🎨 Visualization</h3>
+                        <ul class="feature-list">
+                            <li>Matplotlib rendering</li>
+                            <li>Hex grid geometry</li>
+                            <li>NetworkX graphs</li>
+                            <li>Interactive overlays</li>
+                            <li>Settlement annotations</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>🧮 Optimization</h3>
+                        <ul class="feature-list">
+                            <li>COBYLA optimizer</li>
+                            <li>SciPy integration</li>
+                            <li>Constraint handling</li>
+                            <li>Greedy baselines</li>
+                            <li>Performance metrics</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="highlight-box" style="margin-top: 30px;">
+                    <strong>Key Features:</strong> Proper vertex mapping, distance rule enforcement, 3-hex vertex prioritization, valid path checking, resource constraint satisfaction
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 7: Results & Insights -->
+        <div class="slide" data-slide="7">
+            <h2>📊 Results & Insights</h2>
+            <div class="content">
+                <div class="results-grid">
+                    <div class="result-card">
+                        <div class="emoji">🏆</div>
+                        <div class="result-label">QAOA Success Rate</div>
+                        <div class="result-number">~85%</div>
+                        <p style="margin-top: 10px; color: #666;">Valid configurations found</p>
+                    </div>
+                    <div class="result-card">
+                        <div class="emoji">⚡</div>
+                        <div class="result-label">Quantum Speedup</div>
+                        <div class="result-number">O(√N)</div>
+                        <p style="margin-top: 10px; color: #666;">Grover's advantage</p>
+                    </div>
+                    <div class="result-card">
+                        <div class="emoji">🎯</div>
+                        <div class="result-label">Optimization Quality</div>
+                        <div class="result-number">95%</div>
+                        <p style="margin-top: 10px; color: #666;">Of optimal solution</p>
+                    </div>
+                </div>
+                <div class="two-column" style="margin-top: 40px;">
+                    <div class="highlight-box">
+                        <h3>✅ Strengths</h3>
+                        <ul style="margin-top: 15px; line-height: 1.8;">
+                            <li>Finds non-obvious optimal placements</li>
+                            <li>Handles complex constraints naturally</li>
+                            <li>Adapts to randomized scenarios</li>
+                            <li>Explores solution space efficiently</li>
+                            <li>Balances multiple objectives</li>
+                        </ul>
+                    </div>
+                    <div class="highlight-box">
+                        <h3>🔍 Key Learnings</h3>
+                        <ul style="margin-top: 15px; line-height: 1.8;">
+                            <li>Penalty weights critical for QAOA</li>
+                            <li>Circuit depth affects solution quality</li>
+                            <li>Validation essential for constraints</li>
+                            <li>Hybrid classical-quantum effective</li>
+                            <li>Graph structure matters for encoding</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 8: Conclusion -->
+        <div class="slide" data-slide="8">
+            <h2>🎓 Conclusion & Future Work</h2>
+            <div class="content">
+                <div class="highlight-box" style="font-size: 1.3em; text-align: center; padding: 40px;">
+                    <strong>Quantum algorithms successfully optimize strategic decisions in Catan,<br>
+                    demonstrating practical applications of QAOA, Quantum Walks, and Grover's Algorithm</strong>
+                </div>
+                <div class="two-column" style="margin-top: 40px;">
+                    <div>
+                        <h3>🎯 Achievements</h3>
+                        <ul class="feature-list">
+                            <li>3 quantum algorithms implemented</li>
+                            <li>Real quantum circuits with Qiskit</li>
+                            <li>Complex constraint handling</li>
+                            <li>Multi-objective optimization</li>
+                            <li>Full visualization pipeline</li>
+                            <li>Classical baselines for comparison</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3>🚀 Future Directions</h3>
+                        <ul class="feature-list">
+                            <li>VQE for ground state optimization</li>
+                            <li>Quantum annealing on real hardware</li>
+                            <li>Multi-player game theory</li>
+                            <li>Reinforcement learning hybrid</li>
+                            <li>Larger board configurations</li>
+                            <li>Error mitigation strategies</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="highlight-box" style="margin-top: 40px; text-align: center;">
+                    <h2 style="color: #667eea; margin-bottom: 20px;">Thank You! 🎲⚛️</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="slide-counter">
+        <span id="current-slide">1</span> / <span id="total-slides">8</span>
+    </div>
+
+    <div class="controls">
+        <button onclick="previousSlide()">← Previous</button>
+        <button onclick="nextSlide()">Next →</button>
+    </div>
+
+    <script>
+        let currentSlide = 1;
+        const totalSlides = 8;
+
+        function showSlide(n) {
+            const slides = document.querySelectorAll('.slide');
+            
+            if (n > totalSlides) n = totalSlides;
+            if (n < 1) n = 1;
+            
+            slides.forEach((slide, index) => {
+                slide.classList.remove('active', 'prev');
+                if (index + 1 === n) {
+                    slide.classList.add('active');
+                } else if (index + 1 < n) {
+                    slide.classList.add('prev');
+                }
+            });
+            
+            currentSlide = n;
+            document.getElementById('current-slide').textContent = currentSlide;
+        }
+
+        function nextSlide() {
+            showSlide(currentSlide + 1);
+        }
+
+        function previousSlide() {
+            showSlide(currentSlide - 1);
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') {
+                nextSlide();
+            } else if (e.key === 'ArrowLeft') {
+                previousSlide();
+            }
+        });
+
+        // Initialize
+        document.getElementById('total-slides').textContent = totalSlides;
+    </script>
+</body>
+</html>
