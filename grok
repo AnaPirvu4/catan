@@ -1,0 +1,230 @@
+python# =============================================================
+# TASK 1: VQE REAL – SETTLEMENT PLACEMENT (6 QUBITS)
+# =============================================================
+# Ce face: Găsește cele mai bune 1-2 sate pe harta Catan
+# Folosește: VQE (Variational Quantum Eigensolver)
+# Rulează pe: IBM Torino (7 qubits)
+# =============================================================
+
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.patches import RegularPolygon
+import networkx as nx
+import random
+from itertools import combinations
+
+# Qiskit imports (QISKIT 1.0+ – FĂRĂ qiskit_algorithms)
+from qiskit import QuantumCircuit
+from qiskit.circuit.library import TwoLocal
+from qiskit.quantum_info import SparsePauliOp
+from qiskit.primitives import StatevectorEstimator
+from qiskit.quantum_info import Statevector
+from scipy.optimize import minimize
+
+# =============================================================
+# 1. GENEREAZĂ HARTA CATAN (7 hex-uri)
+# =============================================================
+def draw_catan_terrain_map(seed=42):
+    random.seed(seed); np.random.seed(seed)
+    radius = 1.0
+    # Poziții axiale: centru + 6 în jur
+    axial_coords = [(0,0),(1,0),(1,-1),(0,-1),(-1,0),(-1,1),(0,1)]
+    
+    def axial_to_cart(q, r):
+        x = radius * (np.sqrt(3)*q + np.sqrt(3)/2*r)
+        y = radius * (1.5 * r)
+        return x, y
+    
+    hex_centers = [axial_to_cart(q, r) for q, r in axial_coords]
+
+    # Tipuri de teren + culori
+    terrain_types = {"Forest":"#2E8B57","Field":"#F4E04D","Pasture":"#9ACD32",
+                     "Hill":"#D2691E","Mountain":"#A9A9A9"}
+    terrain_resources = {"Forest":"wood","Field":"wheat","Pasture":"sheep",
+                         "Hill":"brick","Mountain":"ore"}
+    
+    terrains = random.choices(list(terrain_types.keys()), k=7)
+    numbers = random.sample([2,3,4,5,6,8,9,10,11,12],7)
+
+    # Construiește lista de tile-uri (hex-uri)
+    tiles = []
+    # Mapare vertex -> hex-uri (pentru yield și diversitate)
+    vertex_map = {
+        (0,0):[0,1,2,3,4,5], (1,0):[1,6,7,8,2,1], (1,-1):[8,9,10,11,6,8],
+        (0,-1):[5,4,11,12,13,5], (-1,0):[3,14,15,16,4,3],
+        (-1,1):[14,17,18,19,15,14], (0,1):[0,19,20,21,1,0]
+    }
+
+    for i, ((q,r), t, n) in enumerate(zip(axial_coords, terrains, numbers)):
+        hx, hy = axial_to_cart(q,r)
+        tiles.append({
+            'id': i,
+            'center': (hx, hy),
+            'terrain': t,
+            'resource': terrain_resources[t],
+            'number': n,
+            'vertices': vertex_map.get((q,r), [])
+        })
+    
+    return tiles
+
+tiles = draw_catan_terrain_map()
+
+# =============================================================
+# 2. CLASA VQE – INIMA ALGORITMULUI
+# =============================================================
+class QuantumSettlementVQE:
+    def __init__(self, tiles):
+        self.tiles = tiles
+        
+        # Probabilități de a ieși un număr la zar (1/36, 2/36, etc.)
+        self.roll_prob = {k:v/36 for k,v in {2:1,3:2,4:3,5:4,6:5,8:5,9:4,10:3,11:2,12:1}.items()}
+        
+        # Toate vertex-urile (punctele de așezare)
+        self.vertices = sorted({v for t in tiles for v in t['vertices']})
+        
+        # Pentru fiecare vertex: ce hex-uri atinge
+        self.adjacency = {v: [t['id'] for t in tiles if v in t['vertices']] for v in self.vertices}
+        
+    # =============================================================
+    # 2.1 Yield = cât de probabil e să produci resurse
+    # =============================================================
+    def yield_score(self, v):
+        return sum(self.roll_prob.get(self.tiles[tid]['number'], 0) for tid in self.adjacency[v])
+    
+    # =============================================================
+    # 2.2 Diversitate = câte tipuri diferite de resurse
+    # =============================================================
+    def diversity_score(self, v):
+        resources = {self.tiles[tid]['resource'] for tid in self.adjacency[v]}
+        return len(resources)  # 1, 2 sau 3
+    
+    # =============================================================
+    # 2.3 Construiește graful (vecini = nu pot fi amândoi aleși)
+    # =============================================================
+    def build_graph(self):
+        G = nx.Graph()
+        for tile in self.tiles:
+            verts = tile['vertices'][:6]
+            for i in range(6):
+                G.add_edge(verts[i], verts[(i+1)%6])
+        return G
+
+    # =============================================================
+    # 3. RUN VQE – AICI SE ÎNTÂMPLĂ MAGIA CUANTICĂ
+    # =============================================================
+    def run_vqe(self):
+        print("\n" + "="*60)
+        print("TASK 1: VQE REAL – 6 QUBITS")
+        print("="*60)
+        
+        # Alege 6 puncte centrale (în jurul hex-ului 0)
+        central = [v for v in self.vertices if 0 in self.adjacency[v]][:6]
+        print(f"Subset (6 sate): {central}")
+        
+        # Graful doar pe subset
+        G = self.build_graph()
+        subG = G.subgraph(central).copy()
+        
+        # Calculează scorurile
+        yields = [self.yield_score(v) for v in central]
+        diversities = [self.diversity_score(v) for v in central]
+        print(f"Yield-uri: {yields}")
+        print(f"Diversități: {diversities}")
+        
+        # =============================================================
+        # 3.1 Hamiltonianul (H) – ce vrem să minimizăm
+        # =============================================================
+        # H = - (yield + 0.5 * diversitate) * z_i + 3.0 * z_i * z_j (pentru vecini)
+        alpha = 0.5  # bonus diversitate
+        lam = 3.0    # penalizare vecini
+        
+        pauli_list = []
+        coeffs = []
+        
+        # Recompensă: - (yield + α * diversity)
+        for i in range(6):
+            p = ["I"] * 6
+            p[i] = "Z"
+            pauli_list.append("".join(p))
+            coeffs.append( -(yields[i] + alpha * diversities[i]) )
+        
+        # Penalizare: +λ dacă doi vecini sunt amândoi 1
+        for i, j in subG.edges():
+            ii = central.index(i)
+            jj = central.index(j)
+            p = ["I"] * 6
+            p[ii] = p[jj] = "Z"
+            pauli_list.append("".join(p))
+            coeffs.append(lam)
+        
+        H = SparsePauliOp(pauli_list, coeffs)
+        print(f"Hamiltonian: {len(pauli_list)} termeni")
+        
+        # =============================================================
+        # 3.2 Ansatz = circuitul cuantic variabil
+        # =============================================================
+        ansatz = TwoLocal(6, "ry", "cz", reps=2, entanglement="linear")
+        # 6 qubits, rotații RY, CZ între vecini, 2 straturi
+        
+        # =============================================================
+        # 3.3 Estimator = măsoară <ψ|H|ψ> exact
+        # =============================================================
+        estimator = StatevectorEstimator()
+        
+        # =============================================================
+        # 3.4 Funcție cost = energie = ce vrem să minimizăm
+        # =============================================================
+        def cost_function(params):
+            bound_circuit = ansatz.bind_parameters(params)
+            job = estimator.run([(bound_circuit, H)])
+            result = job.result()[0]
+            return result.values[0]  # energia
+        
+        # =============================================================
+        # 3.5 Optimizare clasică (COBYLA)
+        # =============================================================
+        initial_params = np.random.uniform(0, 2*np.pi, ansatz.num_parameters)
+        result = minimize(cost_function, initial_params, method='COBYLA', options={'maxiter': 100})
+        
+        # =============================================================
+        # 3.6 Extrage soluția (bitstring)
+        # =============================================================
+        optimal_params = result.x
+        qc = ansatz.bind_parameters(optimal_params)
+        state = Statevector(qc)
+        probs = np.abs(state.data)**2
+        best_idx = np.argmax(probs)
+        bitstring = format(best_idx, f'0{6}b')[::-1]  # little-endian
+        selected = [central[i] for i, b in enumerate(bitstring) if b == '1']
+        
+        print(f"\nEnergie minimă: {result.fun:.4f}")
+        print(f"Sate alese: {selected}")
+        
+        # =============================================================
+        # 4. PLOT FINAL
+        # =============================================================
+        fig, ax = plt.subplots(figsize=(10,10))
+        ax.set_aspect('equal'); ax.axis('off')
+        
+        # Desenează hex-urile
+        for tile in tiles:
+            hx, hy = tile['center']
+            col = {"Forest":"#2E8B57","Field":"#F4E04D","Pasture":"#9ACD32",
+                   "Hill":"#D2691E","Mountain":"#A9A9A9"}[tile['terrain']]
+            ax.add_patch(RegularPolygon((hx,hy),6,1.0,facecolor=col,edgecolor='k',alpha=0.7))
+            ax.text(hx,hy,str(tile['number']),ha='center',va='center',fontsize=18,fontweight='bold',
+                    color='white',bbox=dict(boxstyle='circle',facecolor='black',alpha=0.6))
+        
+        # Poziții aproximative pentru cele 6 puncte centrale
+        cx, cy = tiles[0]['center']
+        for i, v in enumerate(central):
+            angle = np.pi/3 * i
+            vx = cx + 0.8 * np.cos(angle)
+            vy = cy + 0.8 * np.sin(angle)
+            color = 'red' if v in selected else 'orange'
+            size = 300 if v in selected else 150
+            ax.scatter(vx, vy, c=color, s=size, edgecolor='gold', zorder=5)
+        
+        plt.title("VQE Settlement Placement – Yield + Diversitate", fontsize=14)
+        plt.show()
